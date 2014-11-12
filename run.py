@@ -4,4 +4,4 @@ from bottle import route, run, template
 def index():
     return template('erlang_python')
 
-run(host='127.0.0.1', port=8080)
+run(host='127.0.0.1', port=5010)
