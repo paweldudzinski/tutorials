@@ -1,6 +1,6 @@
 from bottle import route, run, template, redirect
 
-@route('/erlang-python')
+@route('/')
 def index():
     return redirect('/erlang-python')
 
