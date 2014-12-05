@@ -2,7 +2,7 @@ from bottle import route, run, template, redirect, static_file, view
 
 @route('/static/<filename>')
 def server_static(filename):
-    return static_file(filename, root='/static')
+    return static_file(filename, root='static')
 
 @route('/')
 def index():
