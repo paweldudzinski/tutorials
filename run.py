@@ -1,9 +1,8 @@
-from bottle import route, run, template, redirect, static_file, view
-from bottle import Bottle
+from bottle import route, run, template, redirect, static_file 
 
-@route('/static/:path#.+#', name='static')
-def static(path):
-    return static_file(path, root='static')
+@route('/static/<filename>')
+def server_static(filename):
+    return static_file(filename, root='/static')
 
 @route('/')
 def index():
@@ -12,6 +11,6 @@ def index():
 @route('/erlang-python')
 @view('erlang_python')
 def index():
-    return { 'get_url': Bottle.get_url } 
+    return {} 
 
 run(host='127.0.0.1', port=5010)

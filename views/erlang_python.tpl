@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <title>Python/Pyramid + Erlang/OTP + MochiWeb + Riak Tutorial</title>
-        <link rel="stylesheet" href="{{ get_url('static', path='style.css') }}" />
+        <link rel="stylesheet" href="/static/style.css" />
         <link href='http://fonts.googleapis.com/css?family=PT+Sans+Narrow:400,700' rel='stylesheet' type='text/css'>
         <!--[if IE]>
         <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
