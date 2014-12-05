@@ -1,4 +1,4 @@
-from bottle import route, run, template, redirect, static_file
+from bottle import route, run, template, redirect, static_file, view
 from bottle import Bottle
 
 @route('/static/:path#.+#', name='static')
