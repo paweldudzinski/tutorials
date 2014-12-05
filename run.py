@@ -1,4 +1,8 @@
-from bottle import route, run, template
+from bottle import route, run, template, redirect
+
+@route('/erlang-python')
+def index():
+    return redirect('/erlang-python')
 
 @route('/erlang-python')
 def index():
