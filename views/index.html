@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title></title>
+        <title>Python/Pyramid + Erlang/OTP + MochiWeb + Riak</title>
         <link rel="stylesheet" href="style.css" />
         <link href='http://fonts.googleapis.com/css?family=PT+Sans+Narrow:400,700' rel='stylesheet' type='text/css'>
         <!--[if IE]>
@@ -369,7 +369,7 @@ init([]) -><br />
             It will look simmilar to <i>get_token/2</i>:
         </p>
         <code>
-            <span class=""blu">-export([get_workouts/2]).</span><br />
+            <span class="blu">-export([get_workouts/2]).</span><br />
             ...<br />
             get_workouts(Email, Password) -><br />
             &nbsp;&nbsp;&nbsp;&nbsp;TOKEN = get_token(Email, Password),<br />
@@ -680,6 +680,252 @@ create_struct(StructList) -><br />
             We've got it! The part that is responsible for Endomondo API and database operations is done.
             You can take a look at the final erl file <a href="#">here</a>. Of course it's a very basic and step-by-step approach that can be refactored so please feel free. And feel free to write tests ;)
         </p>
+        <div class="hr"></div>
+        <p class="subtitle">
+        <strong>
+            <a name="#a3"></a>7. Seting up a worker in MochiWeb
+        </strong>
+         </p>
+         <p>
+             We already have a set of functions that will allow us to get data from Endomondo and save it to Riak. Now we have to set up a worker,
+             a process that will be run periodicaly, let's say each 1 hour, that will do some work so out database will be up to date and python application can load all the data we need to a browser.
+         </p>
+         <p>
+             Let's focus on <i>src/myruns_web.erl</i> file of our MochiWeb project. 
+         </p>
+         <p>
+             We need to implement our periodical worker. Perfect solution for that is <i>handle_info/2</i> in our <i>gen_server</i> application.
+             It deals with messages that do not fit our interface. Simple code belows will fit our needs.<br />
+             First we need to send a message that is not handled in any way in the application, for instance:
+         </p>
+         <code>
+                <span class="blu">-define(INTERVAL, 60000).</span><br />...<br />
+                init([]) -><br />
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">erlang:send_after(?INTERVAL, self(), trigger),</span><br />
+&nbsp;&nbsp;&nbsp;&nbsp;{ok, #state{}}.
+         </code>
+         <p>
+             We need to send a message that is nowhere handled. Let's call it <i>trigger</i> that will be send to <i>self()</i> process
+             after <i>INTERVAL</i> miliseconds and according to <i>gen_server</i> specification we can handle that in <i>handle_info/2</i> function.
+         </p>
+         <code>
+<span class="blu">
+handle_info(trigger, State) -><br />
+&nbsp;&nbsp;&nbsp;&nbsp;Data = endomondo_api:get_data("paweldudzinski@gmail.com", "***"),<br />
+&nbsp;&nbsp;&nbsp;&nbsp;endomondo_api:save_data(Data),  <br />
+&nbsp;&nbsp;&nbsp;&nbsp;erlang:send_after(?INTERVAL, self(), trigger),<br />
+&nbsp;&nbsp;&nbsp;&nbsp;{noreply, State};<br /></span>
+handle_info(_Info, State) -><br />
+&nbsp;&nbsp;&nbsp;&nbsp;{noreply, State}.
+         </code>
+         <p>
+            Using functions that we wrote previously we can get data from Endomondo and save it to Riak. Then yet again send a message <i>trigger</i> after <i>INTERVAL</i> miliseconds and repeat the process.
+         </p>
+         <p>
+             Our worker is done but as usual there is a lot of room to improve. For instance you could try to get rid of hardcoded Endomondo username and password.
+         </p>
+         <p>
+             Last thing we need to change at this piont is MochiWeb's start script (<i>start-dev.sh</i>) for it to use erlang riak client:
+         </p>
+         <code>
+            #!/bin/sh<br />
+            exec erl \<br />
+&nbsp;&nbsp;&nbsp;&nbsp;-pa ebin deps/*/ebin <span class="blu">../riak-erlang-client/ebin/  ../riak-erlang-client/deps/*/ebin \</span><br />
+&nbsp;&nbsp;&nbsp;&nbsp;-boot start_sasl \<br />
+&nbsp;&nbsp;&nbsp;&nbsp;-sname myruns_dev \<br />
+&nbsp;&nbsp;&nbsp;&nbsp;-s myruns \<br />
+&nbsp;&nbsp;&nbsp;&nbsp;-s reloader<br />
+         </code>
+          <div class="hr"></div>
+            <p class="subtitle">
+            <strong>
+                <a name="#a3"></a>8. Getting data from Riak and serving as JSON
+            </strong>
+            </p>
+            <p>
+                As you probably remember in one of first chapters we wrote a simple finction in our gen_server application called <i>get_my_runs/2</i>.
+                It had two parameters: username and password. We will skip them both as those credentials are hardcoded in a worker (please feel free to redo the application so it would be somehow possible for user to provide username and password).<br />
+                This is how a simple scafold of that functionality should look like now:
+            </p>
+            <code>
+            -export([start_link/0, get_my_runs/0]).<br />
+            ...<br />
+            get_my_runs() -><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;{ok, Reply} = gen_server:call(?SERVER, {get_my_runs}),<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;Reply.<br />
+            ...<br />
+            handle_call({get_my_runs}, _From, State) -><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;Reply = {ok, "Getting runs"},<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;{reply, Reply, State};<br />
+            handle_call(_Request, _From, State) -><br />
+            &nbsp;&nbsp;&nbsp;&nbsp;Reply = ok,<br />
+            &nbsp;&nbsp;&nbsp;&nbsp;{reply, Reply, State}.<br />
+            </code>
+            <p>
+                Compile new code and run MochiWeb. Check if all work fine here: <i>http://0.0.0.0:8080/get_my_runs</i>. After small adjustment in
+                <i>myruns_web.erl</i> you should see "Getting runs" in your browser. I'll let you discover what has to be changed in main MochiWeb loop ;)
+            </p>
+            <p>
+                Let's write some code that will serve json with workouts instead on lame "Getting runs":
+            </p>
+            <code>
+                get_workouts() -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Pid = connect_to_riak(?RIAK_URL, ?RIAK_PORT),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;{ok, Keys} = riakc_pb_socket:list_keys(Pid, <<"endomondo">>),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Struct = get_workouts_struct(Keys, Pid),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;disconnect_riak(Pid),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;mochijson2:encode(Struct).
+            </code>
+            <p>
+                <i>get_workouts/0</i> first connects to Riak and then gets all available heys in a bucket <<"endomondo">>. This operation is generally 
+                not recommended as it might be quite resource consuming as it requires traversing all keys stored in the cluster. But for the sake of this tutorial it's fine.
+            </p>
+            <p>
+                Function <i>get_workouts_struct/2</i> that will return Erlang structures that will be converted to json with <i>mochijson2:encode/1</i>
+                has to get all values indicated by keys from database.
+                Then should return a list of those objects build using tail recursion:
+            </p>
+            <code>
+                get_workouts_json(Keys, Pid) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;get_workouts_json(Keys, Pid, []).<br />
+                <br />
+                get_workouts_json([H|[]], Pid, Acc) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Struct = get_row_as_struct(Pid, H),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Acc ++ [Struct];<br />
+                get_workouts_json([H|T], Pid, Acc) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Struct = get_row_as_struct(Pid, H),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;get_workouts_json(T, Pid, Acc ++ [Struct]).
+            </code>
+            <p>
+                Accumulator <i>Acc</i> will collect all objects returned by <i>get_row_as_struct/2</i> until it reaches empty lists.
+            </p>
+            <code>
+                get_row_as_struct(Pid, Element) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;{ok, Row} = riakc_pb_socket:get(Pid, ?RIAK_BUCKET, Element),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Struct = mochijson2:decode(riakc_obj:get_value(Row)),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Struct.
+            </code>
+            <p>
+                First a row from database is fetched with <i>riakc_pb_socket:get/3</i> where <i>Element</i> is a workout key.
+                Because a value is kept as a string (json) that we retrieve using <i>riakc_obj:get_value/1</i> and eventually we need a list of erlang objects
+                we need to convert it back to struct with <i>mochijson2:decode/1</i>.
+            </p>
+            <p>
+                List of Erlang structs is finally served to a browser as json, so we need a small change in <i>myruns_server.erl</i>:
+            </p>
+            <code>
+                handle_call({get_my_runs}, _From, State) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">Runs = endomondo_api:get_workouts(),<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Reply = {ok, Runs},</span><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;{reply, Reply, State};<br />
+                handle_call(_Request, _From, State) -><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;Reply = ok,<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;{reply, Reply, State}.
+            </code>
+            <p>
+                Now we can test <i>http://0.0.0.0:8080/get_my_runs</i> where we should see our json. If so, we're done with Erlang part.
+                If you see anything to improve, change, make more flexible etc. feel free to do it and share with me. And write some tests ;)
+            </p>
+            <div class="hr"></div>
+            <p class="subtitle">
+            <strong>
+                <a name="#a3"></a>8. Python virtualenv nad pyramid project
+            </strong>
+            </p>
+            <p>
+                I assume you do have python installed. We'd need a virtual enviroment for our python project:
+            </p>
+            <code>
+                $ easy_install virtualenv<br />
+                $ virtualenv myruns_python_env --no-site-packages
+            </code>
+            <p>
+                When we have a basic python virtual enviroment created for our project, we can proceed with installing pylons packages:
+            </p>
+            <code>
+                $ myruns_python_env/bin/easy_install "pyramid==1.5.2"
+            </code>
+            <p>
+                After pyramid is installed we're ready to create a project. Let's call it "myruns_web":
+            </p>
+            <code>
+                myruns_python_env/bin/pcreate -s starter myruns_web
+            </code>
+            <p>
+                Bunch on files will be created. If you'd like to know more on that I strongly advice you to check the documentation.
+                After all you can run your pyramid application: <i>../myruns_python_env/bin/pserve development.ini</i>
+            </p>
+            
+            <div class="hr"></div>
+            <p class="subtitle">
+            <strong>
+                <a name="#a3"></a>9. Retrieving data from Erlang application
+            </strong>
+            </p>
+            <p>
+                Let's assume that our worker that periodically gets the data from Endomondo and saves it to Riak is up and running under local address:
+                <i>http://0.0.0.0:8080</i> and invoking URL <i>http://0.0.0.0:8080/get_my_runs</i> will return json with workouts.<br />
+                What we need is to create a view that will get this json, convert it into python dict and show some cool summary.
+            </p>
+            <p>
+                Let's start from routing. We'd need workouts summary to be displayed straight away under <i>http://0.0.0.0:6543/</i>.
+                So in <i>__ini__.py</i> we dont have to change anything ;) Let's leave it like it is:
+            </p>
+            <code>
+                def main(global_config, **settings):<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;""" This function returns a Pyramid WSGI application.<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;"""<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;config = Configurator(settings=settings)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;config.include('pyramid_chameleon')<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;config.add_static_view('static', 'static', cache_max_age=3600)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">config.add_route('home', '/')</span><br />
+                &nbsp;&nbsp;&nbsp;&nbsp;config.scan()<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;return config.make_wsgi_app()<br />
+            </code>
+            <p>
+                Line marked with blue colour indicate that "home" view will be responsible for a "/" URL.
+                Implementation of this view can be found in a <i>view.py</i> file. Below's a slightly changed version:
+            </p>
+            <code>
+                <span class="blu">@view_config(route_name='home', renderer='templates/index.mako')</span><br />
+                def my_view(request):<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">return {}</span><br />
+            </code>
+            <p>
+                Our content will be shown in rendered <i>index.mako</i> (which you'd need to create). For now no parameters will be passed to a template.
+            </p>
+            <p>
+                Let's communicate with MochiWeb now.
+            </p>
+            <code>
+                <span class="blu">import json<br />
+                import urllib2</span><br />
+                from pyramid.view import view_config<br />
+                <br />
+                @view_config(route_name='home', renderer='templates/index.mako')<br />
+                def my_view(request):<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">req = urllib2.Request('http://0.0.0.0:8080/get_my_runs')<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;response = urllib2.urlopen(req)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;data = response.read()<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;structure = json.loads(data)<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;structure = sorted(structure, key=lambda x: x['Date']):<br />
+                <br />
+                &nbsp;&nbsp;&nbsp;&nbsp;return {<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'structure': structure<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;}</span><br />
+            </code>
+            <p>
+                We would need two extra libraries to gain our goal: <i>json</i> for parsing json to python structure and <i>urllib2</i> for getting a resource from a given URL.
+                The body of <i>my_view</i> action is easy to understand. First we fetch content of <i>http://0.0.0.0:8080/get_my_runs</i> which is json.
+                Then we convert json to python list and sort this list by a dict key "Data". Finally we return a context with sorted structure and render mako file where we can do anything we need with our workouts.
+            </p>
+            <p>
+                That is basically it. Now you can do all kind of fancy charts, statistics etc with your workouts. Erlang worker will fetch new workouts every X minutes and every request to pyramid app will return 
+                brand new structure with current data.
+            </p>
+            <p>
+                Hope you enjoyed it. Feel free to share it and send me your questions, feedback and ideas on how to improve on paweldudzinski@gmail.com.
+            </p>
     </section>
     <br /><br /><br /><br />
     </body>
