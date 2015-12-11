@@ -1,13 +1,29 @@
 <!doctype html>
 <html lang="en">
     <head>
-        <meta charset="utf-8" />
         <title>Python/Pyramid + Erlang/OTP + MochiWeb + Riak Tutorial</title>
+        <meta charset="utf-8" />
+        <meta name="description" content="Tutorial including using Erlang for API communication and database operations with python wsgi applications for data presentation." />
+        <meta name="keywords" content="erlang, otp, mochiweb, riak, python, pyramid, api, endomondo" />
         <link rel="stylesheet" href="/static/style.css" />
         <link href='http://fonts.googleapis.com/css?family=PT+Sans+Narrow:400,700' rel='stylesheet' type='text/css'>
         <!--[if IE]>
         <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
         <![endif]-->
+        <script type="text/javascript">
+
+         var _gaq = _gaq || [];
+         _gaq.push(['_setAccount', 'UA-57417277-1']);
+         _gaq.push(['_trackPageview']);
+
+         (function() {
+           var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+           ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+           var s = document.getElementsByTagName('script')[0];
+           s.parentNode.insertBefore(ga, s);
+         })();
+
+        </script>
     </head>
     <body>
     
@@ -34,6 +50,9 @@
             Application that we'll create will retrieve all your runs from Endomondo, save it to Riak database and present the charts in web browser.<br />
             If you don't use Endomondo you can sing in there and add fake workouts for the purpose of this tutorial or run few times before you read it ;)<br />
             Let's start then.
+            <div style="margin:0px auto; width:100%; text-align:center;">
+            <img src="/static/schema.png" title="Python Erlang Tutorial" />
+            </div>
         </p>
         <div class="hr"></div>
         <p class="subtitle">
