@@ -14,7 +14,7 @@
     <section class="container">
     
         <header class="title">
-            Python/Pyramid + Erlang/OTP + MochiWeb + Riak
+            Python/Pyramid + Erlang/OTP + MochiWeb + Riak + Endomondo REST API
         </header>
         <div class="hr"></div>
         <p>
@@ -49,7 +49,7 @@
             Then go to mochiweb dir and create project by: 
             <code>make app PROJECT=myruns</code>
             You'll get complete scafold for your project containging <i>rebar.config</i> and start script.<br />
-            You can compile and run your app now by invoking <i>make</i> in your <i>myruns</i> directory and run script with <i>./start_script.sh</i><br />
+            You can compile and run your app now by invoking <i>make</i> in your <i>myruns</i> directory and run script with <i>./start-dev.sh</i><br />
             Check in browser that it works: <i>http://0.0.0.0:8080</i>.<br />
             Works? Great, so let's exit this app (type <i>q().</i>) and check briefly what's under the hood!
             <aside class="footnotes">
@@ -74,6 +74,9 @@ loop(Req, DocRoot) -><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case Req:get(method) of<br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Method when Method =:= 'GET'; Method =:= 'HEAD' -><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case Path of<br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"hello_world" -><br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Req:respond({200, [{"Content-Type", "text/plain"}],<br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Hello world!\n"});<br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_ -><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Req:serve_file(Path, DocRoot)<br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;end;<br />
@@ -92,10 +95,11 @@ loop(Req, DocRoot) -><br />
         </p>
         
         <p>
-            Loop function gets two parameters - <i>Req</i>, witch is a representation of request and <i>DocRoot</i> points to a directory which is root directory for our webapp.<br />
+            Loop function gets two parameters - <i>Req</i>, witch is a representation of a request and <i>DocRoot</i> points to a directory which is root directory for our webapp.<br />
             <i>"/" ++ Path = Req:get(path)</i> expression gets the path of our request into <i>Path</i>. If request is made from root - <i>Path</i> will contain empty list ([]) otherwise it will containt path without first slash.<br />
             Then method of the request is checked and <i>Path</i> is patternmatched to what we will specific in url. For now everything (_) what is received by GET is processed to <i>Req:serve_file(Path, DocRoot)</i>.<br />
-            <i>Req:serve_file(Path, DocRoot)</i> will render index.html file which is in the <i>DocRoot</i> directory in /priv/www/.
+            <i>Req:serve_file(Path, DocRoot)</i> will render index.html file which is in the <i>DocRoot</i> directory in /priv/www/.<br />
+            There's also an example of handling the routing: <i>/hello_world</i> URL will render "Hello world" in a browser.<br />
         </p>
         
         <p>
@@ -106,6 +110,7 @@ loop(Req, DocRoot) -><br />
 case Req:get(method) of<br />
 &nbsp;&nbsp;&nbsp;&nbsp;Method when Method =:= 'GET'; Method =:= 'HEAD' -><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;case Path of<br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...<br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="blu">"get_my_runs" -><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Req:respond({200, [{"Content-Type", "text/plain"}], "Will get my runs..."});</span><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_ -><br />
@@ -116,7 +121,7 @@ case Req:get(method) of<br />
         </p>
         
         <p>
-            Compile code (<i>make</i>), run the app (<i>start_script.sh</i>) and check <i>http://0.0.0.0:8080/get_my_runs</i>.<br />
+            Compile code (<i>make</i>), run the app (<i>start-dev.sh</i>) and check <i>http://0.0.0.0:8080/get_my_runs</i>.<br />
             You should see "Will get my runs..." in your browser.
         </p>
         <p>
@@ -134,7 +139,8 @@ case Req:get(method) of<br />
         <p>
             We will user <i>gen_server</i> behavour for our backend app.<br />
             Let's start with creating file <i>src/myruns_server.erl</i>
-            and paste there gen_server's skeledon that can be found here: <a target="_blank" href="http://spawnlink.com/otp-intro-1-gen_server-skeleton/index.html">http://spawnlink.com/otp-intro-1-gen_server-skeleton/index.html</a>.
+            and paste there gen_server's skeledon that can be found here:
+            <a target="_blank" href="/static/gen_server.erl">gen_server.erl</a>.
         </p>
         <p>
             Modul name should be changed and we will export new function <i>get_my_runs/2</i>:
@@ -190,7 +196,10 @@ init([]) -><br />
             </code>
             So, we've created a child definition for our server and added it to <i>Processes</i> array that is used for defining supervision tree.<br />
             That's it. <i>myruns_server</i> is a part of our application, starts with it and it's supervised by the same supervisor as mochiweb application.
-            You can now recomplile, start app again and check in browser if you'll get "Will use some_username username to connect to Endomondo".<br />
+             While starting application, web server starts and it can br reached from 0.0.0.0:8080 addres, but that's not all. At the same time you can
+            use erlang shell of your application like a normal shell and perform any operations you like, including:
+            <code>myruns_server:get_my_runs("some_username","y").</code>
+            You can now recomplile, start app again and check in shell if you'll get "Will use some_username username to connect to Endomondo".<br />
             I bet you do, so we can move on to implementing API communication with Endomono.
         </p>
         
