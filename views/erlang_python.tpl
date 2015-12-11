@@ -30,7 +30,7 @@
     <section class="container">
     
         <header class="title">
-            Python/Pyramid + Erlang/OTP + MochiWeb + Riak + Endomondo REST API
+            Python/Pyramid + Erlang/OTP + MochiWeb + Riak + Endomondo API
         </header>
         <div class="hr"></div>
         <p>
